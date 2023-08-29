@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.haoliang.mapper.WalletUsdLogsMapper">
+
+    <sql id="yesterday">
+        w.createTime between DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), '%Y-%m-%d 00:00:00')
+        and DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), '%Y-%m-%d 23:59:59')
+    </sql>
+
+    <sql id="joinEnabledUser">
+        left join
+            app_users u
+            on w.userId=u.id
+        where u.enabled=1
+    </sql>
+
+    <select id="getDateSection" resultType="com.haoliang.model.dto.DateSection">
+        select
+            min(createTime) minDate, max(createTime) maxDate
+        from
+            wallet_usd_logs
+        where
+            userId = #{userId}
+    </select>
+
+    <select id="sumAmountByAndUserIdAndTypeInAndDateRange" resultType="java.math.BigDecimal">
+        select
+            sum(amount)
+        from
+            wallet_usd_logs
+        where
+            userId=#{userId}
+            and status=0
+            and type in
+            <foreach collection="typeList" item="type" separator="," open="(" close=")">
+                #{type}
+            </foreach>
+            <if test="beginDate!=null">
+                and createTime <![CDATA[ >= ]]> #{beginDate}
+            </if>
+            <if test="endDate!=null">
+                and createTime <![CDATA[ <= ]]> #{endDate}
+            </if>
+    </select>
+
+    <select id="sumAmountGroupByType" resultType="com.haoliang.model.WalletUsdLogs">
+        select
+            type, sum(amount) amount
+        from
+            wallet_usd_logs w
+        <include refid="joinEnabledUser"></include>
+        and   w.status = 0
+        group by
+            w.type
+    </select>
+
+    <select id="sumYesterdayAmountGroupByType" resultType="com.haoliang.model.WalletUsdLogs">
+        select
+            type, sum(amount) amount
+        from
+            wallet_usd_logs w
+        <include refid="joinEnabledUser"></include>
+            and w.status = 0
+            and <include refid="yesterday"></include>
+            group by w.type
+    </select>
+
+    <select id="sumYesterdayTotalAmountByType" resultType="java.math.BigDecimal">
+        select
+            sum(amount)
+        from
+            wallet_usd_logs w
+        <include refid="joinEnabledUser"></include>
+            and  w.status = 0
+            and <include refid="yesterday"></include>
+            and w.type = #{type}
+    </select>
+
+    <select id="sumAmountByType" resultType="java.math.BigDecimal">
+        select
+            sum(amount)
+        from
+            wallet_usd_logs w
+        <include refid="joinEnabledUser"></include>
+            and w.type = #{type}
+            and w.status = 0
+    </select>
+
+    <select id="mypage" resultType="com.haoliang.model.vo.WalletUsdLogVO">
+        select
+            createTime, amount, action, type,status,coinId
+        from
+            wallet_usd_logs
+        where
+            1=1
+        <if test="userId!=null">
+            and userId= #{userId}
+        </if>
+        <if test="type>-1">
+            and type= #{type}
+        </if>
+        <if test="beginDate!=null">
+            and createTime <![CDATA[ >= ]]> #{beginDate}
+            and createTime <![CDATA[ <= ]]> #{endDate}
+        </if>
+        order by
+            createTime desc
+    </select>
+
+    <select id="sumToDayTotalAmountByType" resultType="java.math.BigDecimal">
+        select
+            sum(amount)
+        from
+            wallet_usd_logs w
+        <include refid="joinEnabledUser"></include>
+            and type = #{type}
+            and status = 0
+            and w.createTime > DATE_FORMAT(CURDATE(), '%Y-%m-%d 00:00:00')
+    </select>
+
+    <select id="sumAmountGroupByTypeAndParentId" resultType="com.haoliang.model.WalletUsdLogs">
+        select
+            type, sum(amount) amount
+        from
+            wallet_usd_logs w
+        left join
+            tree_paths t
+            on w.userId = t.descendant
+        <include refid="joinEnabledUser"></include>
+            and t.ancestor = #{userId}
+            and status = 0
+            and t.level>0
+        group by
+            type
+    </select>
+
+    <select id="sumYesterdayAmountGroupByTypeAndParentId" resultType="com.haoliang.model.WalletUsdLogs">
+        select
+            type, sum(amount) amount
+        from
+            wallet_usd_logs w
+        left join
+            tree_paths t
+            on w.userId = t.descendant
+        <include refid="joinEnabledUser"></include>
+            and t.ancestor = #{userId}
+            and status = 0
+            and t.level>0
+            and <include refid="yesterday"></include>
+        group by
+            type
+    </select>
+
+    <select id="statYesterdayBuyVipAmount" resultType="com.haoliang.model.dto.AppUsersAmountDTO">
+        select
+            userId,sum(amount) totalAmount
+        from
+            wallet_usd_logs  w
+        <include refid="joinEnabledUser"></include>
+        and type=#{type}
+        and inviteId >0
+        and w.createTime  between #{beginDate} and #{endDate}
+        GROUP BY  userId,type
+    </select>
+
+
+</mapper>
